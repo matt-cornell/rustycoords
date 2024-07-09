@@ -2,7 +2,7 @@ use super::*;
 
 #[derive(Debug, Default)]
 pub struct Minimizer<'a> {
-    pub atoms: Vec<sketcher::AtomRef<'a>>,
+    pub atoms: Vec<AtomRef<'a>>,
 }
 impl<'a> Minimizer<'a> {
     pub const fn new() -> Self {

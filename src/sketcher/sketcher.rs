@@ -280,7 +280,7 @@ impl<'a> Minimizer<'a> {
     fn find_fragments(&mut self) {
         let mut independent = Vec::new();
         for &mol in &self.molecules {
-            coordgen::fragmenter::split_into_fragments(mol);
+            coordgen::fragmenter::split_into_fragments(mol, self.interner);
             let mol = mol.borrow();
             if mol.fragments.is_empty() {
                 continue;

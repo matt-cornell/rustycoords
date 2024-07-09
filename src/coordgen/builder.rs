@@ -8,7 +8,7 @@ impl FragmentBuilder {
     pub const fn new() -> Self {
         Self { precision: 0.01 }
     }
-    pub fn initialize_coords(&self, f: sketcher::FragmentRef<'_>) {
+    pub fn initialize_coords(&self, f: FragmentRef<'_>) {
         todo!()
     }
 }
