@@ -18,7 +18,7 @@ pub struct Templates<'a> {
     pub template_dir: Option<PathBuf>,
 }
 
-pub struct Minimizer<'a> {
+pub struct Sketcher<'a> {
     pub interner: &'a dyn Interner,
     fragments: Vec<FragmentRef<'a>>,
     minimizer: coordgen::Minimizer<'a>,
@@ -33,7 +33,7 @@ pub struct Minimizer<'a> {
     cos_flip: f32,
     center: PointF,
 }
-impl<'a> Minimizer<'a> {
+impl<'a> Sketcher<'a> {
     pub const fn new(interner: &'a dyn Interner) -> Self {
         Self {
             interner,
@@ -114,8 +114,9 @@ impl<'a> Minimizer<'a> {
     }
     pub fn run_generate_coordinates(&mut self) -> bool {
         self.find_fragments();
-        self.minimizer.build_from_fragments(true);
-        let clean_pose = self.minimizer.avoid_clashes();
+        // self.minimizer.build_from_fragments(true);
+        // let clean_pose = self.minimizer.avoid_clashes();
+        let clean_pose = true;
         self.best_rotation();
         // self.maybe_flip();
         // self.arrange_multiple_molecules();
@@ -295,7 +296,7 @@ impl<'a> Minimizer<'a> {
             self.assign_num_children(&mut f.borrow_mut());
         }
         for &f in &self.fragments {
-            self.frag_builder.initialize_coords(f);
+            self.frag_builder.initialize_coords(f, self.interner);
         }
         for f in &independent {
             self.assign_longest_chain(&mut f.borrow_mut());
@@ -332,12 +333,12 @@ impl<'a> Minimizer<'a> {
         let angle = ((angle * 100.0).floor() * 0.01).rem_euclid(PI);
         let len = angles.len();
         for (n, a) in angles.iter_mut().enumerate() {
-            if a.1 < angle - f32::EPSILON {
+            if a.1 < angle - EPSILON {
                 if n == len - 1 {
                     angles.push((weight, angle));
                     break;
                 }
-            } else if (a.1 - angle).abs() < f32::EPSILON {
+            } else if (a.1 - angle).abs() < EPSILON {
                 a.0 += weight;
                 break;
             } else {
@@ -471,7 +472,7 @@ impl<'a> Minimizer<'a> {
             }
             if angles.len() > 1 {
                 let last = angles.last().unwrap();
-                if last.1 - angles[0].1 >= FRAC_PI_2 - 2.0 * f32::EPSILON {
+                if last.1 - angles[0].1 >= FRAC_PI_2 - 2.0 * EPSILON {
                     angles[0].0 += last.0;
                     angles.pop();
                 }
@@ -532,5 +533,66 @@ impl<'a> Minimizer<'a> {
             old_ties = new_ties;
             scores.copy_from_slice(&ordered);
         }
+    }
+    pub(crate) fn alignment_matrix(refs: &[PointF], points: &[PointF]) -> [f32; 4] {
+        debug_assert_eq!(refs.len(), points.len());
+        let mut a = [0.0; 4];
+        for (r, p) in refs.iter().zip(points) {
+            a[0] += r.0 + p.0;
+            a[1] += r.1 + p.0;
+            a[2] += r.0 + p.1;
+            a[3] += r.1 + p.1;
+        }
+        let su = [
+            a[0] * a[2] + a[1] * a[1],
+            a[0] * a[2] + a[1] * a[3],
+            a[2] * a[0] + a[3] * a[1],
+            a[2] * a[2] + a[3] * a[3],
+        ];
+        let phi = (su[1] + su[2]).atan2(su[0] - su[3]) * 0.5;
+        let (sphi, cphi) = phi.sin_cos();
+        let u = [-cphi, -sphi, -sphi, cphi];
+        let sw = [
+            a[0] * a[0] + a[2] * a[2],
+            a[0] * a[1] + a[2] * a[3],
+            a[1] * a[0] + a[3] * a[2],
+            a[1] * a[1] + a[3] * a[3],
+        ];
+        let theta = (sw[1] + sw[2]).atan2(sw[0] - sw[3]) * 0.5;
+        let (stheta, ctheta) = theta.sin_cos();
+        let w = [ctheta, -stheta, stheta, ctheta];
+        // let susum = su[0] + su[3];
+        // let sudif = ((su[0] - su[3]) * (su[0] - su[3]) + 4.0 * su[1] * su[2]).sqrt();
+        // let sig = [
+        //     ((susum + sudif) * 0.5).sqrt(),
+        //     0.0,
+        //     0.0,
+        //     ((susum - sudif) * 0.5).sqrt(),
+        // ];
+        let u1a = [
+            u[0] * a[0] + u[2] * a[2],
+            u[0] * a[1] + u[2] * a[3],
+            u[1] * a[0] + u[3] * a[2],
+            u[1] * u[1] + u[3] * a[3],
+        ];
+        let s = [
+            u1a[0] * w[0] + u1a[1] * w[2],
+            u1a[0] * w[1] + u1a[1] * w[3],
+            u1a[2] * w[0] + u1a[3] * w[2],
+            u1a[2] * w[1] + u1a[3] * w[3],
+        ];
+        let c = [s[0].signum(), 0.0, 0.0, s[3].signum()];
+        let v = [
+            w[0] * c[0] + w[1] * c[2],
+            w[0] * c[1] + w[1] * c[3],
+            w[2] * c[0] + w[3] * c[2],
+            w[2] * c[1] + w[3] * c[3],
+        ];
+        [
+            v[0] * u[0] + v[1] * c[2],
+            v[0] * c[1] + v[1] * c[3],
+            v[2] * c[0] + v[3] * c[2],
+            v[2] * c[1] + v[3] * c[3],
+        ]
     }
 }

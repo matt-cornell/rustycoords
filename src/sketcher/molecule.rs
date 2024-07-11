@@ -1,7 +1,6 @@
 use super::*;
-use std::cell::RefCell;
 
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone)]
 pub struct Molecule<'a> {
     pub atoms: Vec<AtomRef<'a>>,
     pub bonds: Vec<BondRef<'a>>,

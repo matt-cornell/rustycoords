@@ -1,19 +1,14 @@
 use super::*;
 use ahash::AHashMap;
-use std::cell::RefCell;
 
-pub trait FragmentDof {
-    fn num_states(&self) -> u8;
-    fn tier(&self) -> u8;
-}
-
-#[derive(Debug, Default, Clone, PartialEq)]
+#[derive(Debug, Default, Clone)]
 pub struct Fragment<'a> {
     pub atoms: Vec<AtomRef<'a>>,
     pub bonds: Vec<BondRef<'a>>,
     pub rings: Vec<RingRef<'a>>,
     pub inter_frags: Vec<BondRef<'a>>,
     pub children: Vec<FragmentRef<'a>>,
+    pub dofs: Vec<FragmentDofRef<'a>>,
     pub parent: Option<(FragmentRef<'a>, BondRef<'a>)>,
     pub num_children: usize,
     pub child_rank: f32,
@@ -22,7 +17,9 @@ pub struct Fragment<'a> {
     pub fixed: bool,
     pub constrained: bool,
     pub constrained_flip: bool,
+    pub templated: bool,
     pub coords: AHashMap<*const RefCell<Atom<'a>>, PointF>,
+    pub atom_dofs: AHashMap<*const RefCell<Atom<'a>>, Vec<FragmentDofRef<'a>>>,
 }
 impl<'a> Fragment<'a> {
     pub fn count_fixed(&self) -> usize {
@@ -57,6 +54,35 @@ impl<'a> Fragment<'a> {
             .iter()
             .filter(|b| b.borrow().bond_order == 2)
             .count()
+    }
+    pub(crate) fn store_coordinate_information(&mut self) {
+        self.coords.clear();
+        let origin;
+        let angle;
+        if let Some((_, bond)) = self.parent {
+            let bond = bond.borrow();
+            let start = bond.start.borrow().coordinates;
+            origin = bond.end.borrow().coordinates;
+            let p = start - origin;
+            angle = p.1.atan2(-p.0);
+        } else {
+            angle = 0.0;
+            if self.constrained || self.fixed {
+                origin = PointF::default();
+            } else {
+                origin = self.atoms[0].borrow().coordinates;
+            }
+        }
+        let (sin, cos) = angle.sin_cos();
+        for a in self.atoms.iter().copied().chain(
+            self.children
+                .iter()
+                .map(|c| c.borrow().parent.unwrap().1.borrow().end),
+        ) {
+            let mut c = a.borrow().coordinates - origin;
+            c.rotate(-sin, cos);
+            self.coords.insert(a as *const _, c);
+        }
     }
 }
 pub type FragmentRef<'a> = &'a RefCell<Fragment<'a>>;

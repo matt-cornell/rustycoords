@@ -1,7 +1,7 @@
 use super::*;
 use std::cell::RefCell;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Atom<'a> {
     pub cross_layout: bool,
     pub fixed: bool,
@@ -19,15 +19,16 @@ pub struct Atom<'a> {
     pub(crate) clockwise_invert: bool,
     pub(crate) ignore_ring_chirality: bool,
     pub(crate) rs_priorities: Vec<u8>,
-    pub implicit_h: u8,
-    pub molecule: Option<MoleculeRef<'a>>,
-    pub fragment: Option<FragmentRef<'a>>,
-    pub neighbors: Vec<AtomRef<'a>>,
-    pub bonds: Vec<BondRef<'a>>,
-    pub rings: Vec<RingRef<'a>>,
+    pub(crate) implicit_h: u8,
+    pub(crate) molecule: Option<MoleculeRef<'a>>,
+    pub(crate) fragment: Option<FragmentRef<'a>>,
+    pub(crate) neighbors: Vec<AtomRef<'a>>,
+    pub(crate) bonds: Vec<BondRef<'a>>,
+    pub(crate) rings: Vec<RingRef<'a>>,
     pub coordinates: PointF,
     pub template: PointF,
     pub force: PointF,
+    pub coordinates_set: bool,
 }
 impl Default for Atom<'_> {
     fn default() -> Self {
@@ -57,6 +58,7 @@ impl Default for Atom<'_> {
             coordinates: PointF::default(),
             template: PointF::default(),
             force: PointF::default(),
+            coordinates_set: false,
         }
     }
 }
@@ -139,6 +141,15 @@ impl<'a> Atom<'a> {
             }
         }
         (valence - bond_orders + self.charge as i16).clamp(0, 4) as u8
+    }
+    pub fn set_coords(&mut self, coords: PointF) {
+        self.coordinates = coords;
+        self.coordinates.round(2);
+        self.coordinates_set = true;
+    }
+    #[inline(always)]
+    pub fn set_coords_to_template(&mut self) {
+        self.set_coords(self.template);
     }
 }
 

@@ -1,4 +1,6 @@
-use std::{iter::Sum, ops::*};
+use super::EPSILON;
+use std::iter::Sum;
+use std::ops::*;
 
 #[inline]
 fn round_to_precision(f: f32, prec: u8) -> f32 {
@@ -15,7 +17,7 @@ impl PointF {
     /// Return the length of the vector.
     pub fn length(self) -> f32 {
         let slen = self.sq_length();
-        if slen > f32::EPSILON {
+        if slen > EPSILON {
             slen.sqrt()
         } else {
             0.0
@@ -24,7 +26,7 @@ impl PointF {
     /// Normalize the vector to have a length of 1 if it has a nonzero length.
     pub fn normalize(&mut self) {
         let len = self.length();
-        if len > f32::EPSILON {
+        if len > EPSILON {
             self.0 /= len;
             self.1 /= len;
         }

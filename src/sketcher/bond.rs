@@ -10,14 +10,14 @@ pub enum Stereo {
     Unspecified,
 }
 
-#[derive(Debug, Default, Clone, Copy, PartialEq)]
+#[derive(Debug, Default, Clone, Copy)]
 pub struct StereoInfo<'a> {
     pub atom1: Option<AtomRef<'a>>,
     pub atom2: Option<AtomRef<'a>>,
     pub stereo: Stereo,
 }
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Bond<'a> {
     pub start: AtomRef<'a>,
     pub end: AtomRef<'a>,
@@ -55,13 +55,21 @@ impl<'a> Bond<'a> {
     }
     pub(crate) fn set_absolute_stereo(&mut self) {
         if self.is_stereo() {
-            let start_opt = self.start_first_cip_neighbor();
-            let end_opt = self.end_first_cip_neighbor();
+            let start = self.start_first_cip_neighbor().unwrap();
+            let end = self.end_first_cip_neighbor().unwrap();
             let mut inv = false;
-            if self.stereo.atom1 != start_opt && self.stereo.atom1 != end_opt {
+            if self
+                .stereo
+                .atom1
+                .map_or(true, |a| !eq(a, start) && !eq(a, end))
+            {
                 inv = true;
             }
-            if self.stereo.atom2 != start_opt && self.stereo.atom2 != end_opt {
+            if self
+                .stereo
+                .atom2
+                .map_or(true, |a| !eq(a, start) && !eq(a, end))
+            {
                 inv = !inv;
             }
             self.is_z = (self.stereo.stereo == Stereo::Cis) ^ inv;

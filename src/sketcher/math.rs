@@ -1,6 +1,6 @@
 //! This is just the stuff in `sketcherMinimizerMaths`
 
-use super::point::PointF;
+use super::*;
 
 pub fn intersection_of_segments(
     s1p1: PointF,
@@ -13,7 +13,7 @@ pub fn intersection_of_segments(
     let q = s2p1;
     let s = s2p2 - s1p1;
     let rxs = r.cross(s);
-    if rxs.abs() < f32::EPSILON {
+    if rxs.abs() < EPSILON {
         return None;
     }
     let qmp = q - p;
@@ -36,11 +36,11 @@ pub fn unsigned_angle(p1: PointF, p2: PointF, p3: PointF) -> f32 {
     // readable code goes brrrrr
     let v1 = p1 - p2;
     let v2 = p3 - p2;
-    let l = (v1.sq_length() * v2.sq_length()).sqrt().max(f32::EPSILON);
+    let l = (v1.sq_length() * v2.sq_length()).sqrt().max(EPSILON);
     (v1.dot(v2) / l).acos().to_degrees()
 }
 pub fn points_coincide(p1: PointF, p2: PointF) -> bool {
-    (p1 - p2).sq_length() < f32::EPSILON * f32::EPSILON
+    (p1 - p2).sq_length() < EPSILON * EPSILON
 }
 pub fn same_side(p1: PointF, p2: PointF, line_p1: PointF, line_p2: PointF) -> bool {
     let PointF(x, y) = line_p2 - line_p1;
@@ -59,7 +59,7 @@ pub fn same_side(p1: PointF, p2: PointF, line_p1: PointF, line_p2: PointF) -> bo
 pub fn project_on_line(p: PointF, sp1: PointF, sp2: PointF) -> PointF {
     let l1 = p - sp1;
     let l3 = sp2 - sp1;
-    let sl2 = l3.sq_length().max(f32::EPSILON);
+    let sl2 = l3.sq_length().max(EPSILON);
     let t = l1.dot(l3) / sl2;
     sp1 + l3 * t
 }
@@ -68,7 +68,7 @@ pub fn sq_dist_point_segment(p: PointF, sp1: PointF, sp2: PointF) -> (f32, f32) 
     let l1 = p - sp1;
     let l2 = sp2 - p;
     let l3 = sp2 - sp1;
-    let sl2 = l3.sq_length().max(f32::EPSILON);
+    let sl2 = l3.sq_length().max(EPSILON);
     let t = l1.dot(l3) / sl2;
     let sqdist = if t < 0.0 {
         l1.sq_length()
@@ -79,7 +79,7 @@ pub fn sq_dist_point_segment(p: PointF, sp1: PointF, sp2: PointF) -> (f32, f32) 
         let l5 = p - proj;
         l5.sq_length()
     };
-    (sqdist.max(f32::EPSILON), t.clamp(0.0, 1.0))
+    (sqdist.max(EPSILON), t.clamp(0.0, 1.0))
 }
 
 /// Specialization -- a = c = [1, 1, 1...], b = [8, 4, ..., 4.25]
@@ -206,7 +206,7 @@ pub fn canonball_distance(
         return 0.0;
     }
     let d = d2.sqrt();
-    if d > f32::EPSILON {
+    if d > EPSILON {
         target_d[0] /= d;
         target_d[1] /= d;
         target_d[2] /= d;

@@ -1,10 +1,10 @@
 use super::*;
-use std::cell::RefCell;
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, Clone)]
 pub struct Ring<'a> {
     pub atoms: Vec<AtomRef<'a>>,
     pub fused_with: Vec<(RingRef<'a>, Vec<AtomRef<'a>>)>,
+    pub fusion_bonds: Vec<BondRef<'a>>,
 }
 impl<'a> Ring<'a> {
     pub fn is_macrocycle(&self) -> bool {
