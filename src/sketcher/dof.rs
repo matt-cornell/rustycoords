@@ -17,7 +17,7 @@ pub enum FragmentDofKind<'a> {
     },
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct FragmentDof<'a> {
     pub kind: FragmentDofKind<'a>,
     pub atoms: Vec<AtomRef<'a>>,

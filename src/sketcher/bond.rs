@@ -17,7 +17,7 @@ pub struct StereoInfo<'a> {
     pub stereo: Stereo,
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Bond<'a> {
     pub start: AtomRef<'a>,
     pub end: AtomRef<'a>,

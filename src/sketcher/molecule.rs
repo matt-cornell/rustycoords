@@ -1,9 +1,9 @@
 use super::*;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct Molecule<'a> {
-    pub atoms: Vec<AtomRef<'a>>,
-    pub bonds: Vec<BondRef<'a>>,
+    pub(crate) atoms: Vec<AtomRef<'a>>,
+    pub(crate) bonds: Vec<BondRef<'a>>,
     pub(crate) main_fragment: Option<FragmentRef<'a>>,
     pub(crate) rings: Vec<RingRef<'a>>,
     pub(crate) fragments: Vec<FragmentRef<'a>>,
@@ -12,6 +12,29 @@ pub struct Molecule<'a> {
     pub(crate) has_constrained_frags: bool,
 }
 impl<'a> Molecule<'a> {
+    pub fn add_atom(&mut self, atom: Atom<'a>, intern: &'a dyn Interner) -> AtomRef<'a> {
+        let a = intern.intern_atom(atom);
+        self.atoms.push(a);
+        a
+    }
+    pub fn add_new_atom(&mut self, atom_number: u8, intern: &'a dyn Interner) -> AtomRef<'a> {
+        let a = intern.intern_atom(Atom::new(atom_number));
+        self.atoms.push(a);
+        a
+    }
+    pub fn add_bond(&mut self, bond: Bond<'a>, intern: &'a dyn Interner) -> BondRef<'a> {
+        let b = intern.intern_bond(bond);
+        self.bonds.push(b);
+        b
+    }
+    pub fn add_new_bond(&mut self, start: AtomRef<'a>, end: AtomRef<'a>, order: u8, intern: &'a dyn Interner) -> BondRef<'a> {
+        let mut bond = Bond::new(start, end);
+        bond.bond_order = order;
+        let b = intern.intern_bond(bond);
+        self.bonds.push(b);
+        b
+    }
+
     pub fn force_update_struct(&mut self) {
         for a in &self.atoms {
             let mut a = a.borrow_mut();

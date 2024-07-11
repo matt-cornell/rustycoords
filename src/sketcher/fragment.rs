@@ -1,7 +1,7 @@
 use super::*;
 use ahash::AHashMap;
 
-#[derive(Debug, Default, Clone)]
+#[derive(Debug, Default)]
 pub struct Fragment<'a> {
     pub atoms: Vec<AtomRef<'a>>,
     pub bonds: Vec<BondRef<'a>>,

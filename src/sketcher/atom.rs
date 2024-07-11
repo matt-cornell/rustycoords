@@ -1,7 +1,7 @@
 use super::*;
 use std::cell::RefCell;
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 pub struct Atom<'a> {
     pub cross_layout: bool,
     pub fixed: bool,
@@ -63,6 +63,12 @@ impl Default for Atom<'_> {
     }
 }
 impl<'a> Atom<'a> {
+    pub fn new(atom_number: u8) -> Self {
+        Self {
+            atom_number,
+            ..Self::default()
+        }
+    }
     pub(crate) fn cip_priority(
         a1: AtomRef<'a>,
         a2: AtomRef<'a>,

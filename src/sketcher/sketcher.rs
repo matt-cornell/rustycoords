@@ -12,12 +12,6 @@ struct ProximityData {
     counters: Vec<i32>,
 }
 
-#[derive(Debug, Default, Clone)]
-pub struct Templates<'a> {
-    pub molecules: Vec<Molecule<'a>>,
-    pub template_dir: Option<PathBuf>,
-}
-
 pub struct Sketcher<'a> {
     pub interner: &'a dyn Interner,
     fragments: Vec<FragmentRef<'a>>,
@@ -51,8 +45,8 @@ impl<'a> Sketcher<'a> {
             center: PointF(0.0, 0.0),
         }
     }
-    pub fn initialize(&mut self, mol: MoleculeRef<'a>) {
-        let mut mol = mol.borrow_mut();
+    pub fn initialize(&mut self, mut mol: Molecule<'a>) {
+        // let mut mol = mol.borrow_mut();
         self.ref_atoms.clone_from(&mol.atoms);
         self.ref_bonds.clone_from(&mol.bonds);
         let mut bonds_to_atom = AHashMap::with_capacity(self.ref_atoms.len());
