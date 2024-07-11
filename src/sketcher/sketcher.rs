@@ -28,7 +28,7 @@ pub struct Sketcher<'a> {
     center: PointF,
 }
 impl<'a> Sketcher<'a> {
-    pub const fn new(interner: &'a dyn Interner) -> Self {
+    pub fn new(interner: &'a dyn Interner) -> Self {
         Self {
             interner,
             fragments: Vec::new(),
@@ -39,7 +39,7 @@ impl<'a> Sketcher<'a> {
             ref_atoms: Vec::new(),
             ref_bonds: Vec::new(),
             proximity_relations: Vec::new(),
-            molecules: Vec::new(),
+            molecules: vec![interner.intern_molecule(Molecule::default())],
             sin_flip: 0.0,
             cos_flip: 0.0,
             center: PointF(0.0, 0.0),
@@ -51,8 +51,12 @@ impl<'a> Sketcher<'a> {
     pub fn bonds(&self) -> &[BondRef<'a>] {
         &self.bonds
     }
-    pub fn initialize(&mut self, mut mol: Molecule<'a>) {
-        // let mut mol = mol.borrow_mut();
+    pub fn generate(&mut self, mol: MoleculeRef<'a>) -> bool {
+        self.initialize(mol);
+        self.run_generate_coordinates()
+    }
+    fn initialize(&mut self, mol: MoleculeRef<'a>) {
+        let mut mol = mol.borrow_mut();
         self.ref_atoms.clone_from(&mol.atoms);
         self.ref_bonds.clone_from(&mol.bonds);
         let mut bonds_to_atom = AHashMap::with_capacity(self.ref_atoms.len());
@@ -112,7 +116,7 @@ impl<'a> Sketcher<'a> {
         self.flag_cross_atoms();
         // TODO: assign coordgen stuff
     }
-    pub fn run_generate_coordinates(&mut self) -> bool {
+    fn run_generate_coordinates(&mut self) -> bool {
         self.find_fragments();
         // self.minimizer.build_from_fragments(true);
         // let clean_pose = self.minimizer.avoid_clashes();
