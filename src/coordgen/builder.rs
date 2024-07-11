@@ -224,6 +224,9 @@ impl FragmentBuilder {
                     if eq(n, at) {
                         continue;
                     }
+                    if visited.contains(&(n as *const _)) {
+                        continue;
+                    }
                     let (s, c) = a.sin_cos();
                     init.rotate(s, c);
                     let mut neigh = n.borrow_mut();
@@ -235,10 +238,12 @@ impl FragmentBuilder {
                         neigh.coordinates_set = false;
                     }
                     // TODO: CoordgenFragmentBuilder.cpp:772
-                    for dof in &frag.atom_dofs[&(at as *const _)] {
-                        let mut dof = dof.borrow_mut();
-                        if eq(dof.frag, f) {
-                            dof.atoms.push(at);
+                    if let Some(dofs) = frag.atom_dofs.get(&(at as *const _)) {
+                        for dof in dofs {
+                            let mut dof = dof.borrow_mut();
+                            if eq(dof.frag, f) {
+                                dof.atoms.push(at);
+                            }
                         }
                     }
                 }

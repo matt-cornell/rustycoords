@@ -203,13 +203,21 @@ pub fn split_into_fragments<'a>(mol: MoleculeRef<'a>, intern: &'a dyn Interner) 
                     let l = last.borrow();
                     for bond in &l.inter_frags {
                         let b = bond.borrow();
-                        let start = b.start.borrow();
-                        let end = b.end.borrow();
-                        let child = if eq(start.fragment.unwrap(), last) {
-                            end.fragment.unwrap()
-                        } else {
-                            start.fragment.unwrap()
+                        let child = {
+                            let start = b.start.borrow();
+                            let end = b.end.borrow();
+                            if eq(start.fragment.unwrap(), last) {
+                                end.fragment.unwrap()
+                            } else {
+                                start.fragment.unwrap()
+                            }
                         };
+                        if eq(child, f) {
+                            continue;
+                        }
+                        if l.parent.map_or(false, |p| eq(p.0, child)) {
+                            continue;
+                        }
                         let mut c = child.borrow_mut();
                         if !c.is_chain {
                             continue;
@@ -241,6 +249,9 @@ pub fn split_into_fragments<'a>(mol: MoleculeRef<'a>, intern: &'a dyn Interner) 
         }
         m.main_fragment = Some(main_fragment);
         // add parent info
+        for f in &m.fragments {
+            f.borrow_mut().parent = None;
+        }
         queue.push_back(main_fragment);
         while let Some(last) = queue.pop_front() {
             let mut l = last.borrow_mut();
@@ -258,6 +269,9 @@ pub fn split_into_fragments<'a>(mol: MoleculeRef<'a>, intern: &'a dyn Interner) 
                     b.is_reversed = !b.is_reversed;
                     child
                 };
+                if l.parent.map_or(false, |p| eq(p.0, child)) {
+                    continue;
+                }
                 let mut c = child.borrow_mut();
                 if c.parent.is_none() {
                     c.parent = Some((last, bond));

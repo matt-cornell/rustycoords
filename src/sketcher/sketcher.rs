@@ -2,15 +2,7 @@ use super::*;
 use ahash::AHashMap;
 use std::collections::VecDeque;
 use std::f32::consts::{FRAC_PI_2, FRAC_PI_6, PI};
-use std::path::PathBuf;
 use std::ptr::eq;
-
-#[derive(Debug, Default, Clone, PartialEq)]
-struct ProximityData {
-    add_vecs: Vec<PointF>,
-    centers: Vec<PointF>,
-    counters: Vec<i32>,
-}
 
 pub struct Sketcher<'a> {
     pub interner: &'a dyn Interner,
@@ -203,7 +195,9 @@ impl<'a> Sketcher<'a> {
                     let Some((_, neighbor)) = res else { break };
                     a.bonds[neighbor].borrow_mut().sssr_visited = true;
                     let n = a.neighbors[neighbor];
-                    if eq(n, at) { continue }
+                    if eq(n, at) {
+                        continue;
+                    }
                     let mut n = n.borrow_mut();
                     if !n.general_use_visited {
                         n.general_use_visited = true;
@@ -226,8 +220,8 @@ impl<'a> Sketcher<'a> {
             a.borrow_mut().general_use_visited = false;
         }
         let mut q = VecDeque::new();
-        loop {
-            q.push_back(mol.atoms[0]);
+        while let Some(&first) = mol.atoms.first() {
+            q.push_back(first);
             while let Some(a) = q.pop_front() {
                 let mut a = a.borrow_mut();
                 a.general_use_visited = true;
@@ -261,9 +255,6 @@ impl<'a> Sketcher<'a> {
                 } else {
                     i += 1;
                 }
-            }
-            if mol.atoms.is_empty() {
-                break;
             }
             self.molecules.push(self.interner.intern_molecule(out));
         }
@@ -310,7 +301,7 @@ impl<'a> Sketcher<'a> {
             self.frag_builder.initialize_coords(f, self.interner);
         }
         for f in &independent {
-            self.assign_longest_chain(&mut f.borrow_mut());
+            self.assign_longest_chain(&mut f.borrow_mut(), None);
         }
     }
     fn assign_num_children(&self, frag: &mut Fragment<'a>) {
@@ -327,17 +318,24 @@ impl<'a> Sketcher<'a> {
         frag.num_children = cumatoms + childatoms;
         frag.child_rank = cumranks * 0.01 + childatoms as f32;
     }
-    fn assign_longest_chain(&self, frag: &mut Fragment<'a>) {
+    fn assign_longest_chain(
+        &self,
+        frag: &mut Fragment<'a>,
+        parent: Option<&AHashMap<*const RefCell<Atom<'a>>, PointF>>,
+    ) {
         frag.longest_chain = 0.0;
         for &child in &frag.children {
             let mut child = child.borrow_mut();
-            self.assign_longest_chain(&mut child);
+            self.assign_longest_chain(&mut child, Some(&frag.coords));
             if child.longest_chain > frag.longest_chain {
                 frag.longest_chain = child.longest_chain;
             }
         }
         if let Some((f, bond)) = frag.parent {
-            frag.longest_chain += f.borrow().coords[&(bond.borrow().end as *const _)].length();
+            let key = &(bond.borrow().end as *const _);
+            frag.longest_chain += parent
+                .map_or_else(|| f.borrow().coords[key], |p| p[key])
+                .length();
         }
     }
     fn add_to_vector(weight: f32, angle: f32, angles: &mut Vec<(f32, f32)>) {

@@ -27,7 +27,13 @@ impl<'a> Molecule<'a> {
         self.bonds.push(b);
         b
     }
-    pub fn add_new_bond(&mut self, start: AtomRef<'a>, end: AtomRef<'a>, order: u8, intern: &'a dyn Interner) -> BondRef<'a> {
+    pub fn add_new_bond(
+        &mut self,
+        start: AtomRef<'a>,
+        end: AtomRef<'a>,
+        order: u8,
+        intern: &'a dyn Interner,
+    ) -> BondRef<'a> {
         let mut bond = Bond::new(start, end);
         bond.bond_order = order;
         let b = intern.intern_bond(bond);
@@ -44,12 +50,16 @@ impl<'a> Molecule<'a> {
         }
         for bond in &self.bonds {
             let b = bond.borrow();
-            let mut start = b.start.borrow_mut();
-            let mut end = b.end.borrow_mut();
-            start.bonds.push(bond);
-            end.bonds.push(bond);
-            start.neighbors.push(b.end);
-            end.neighbors.push(b.start);
+            {
+                let mut start = b.start.borrow_mut();
+                start.bonds.push(bond);
+                start.neighbors.push(b.end);
+            }
+            {
+                let mut end = b.end.borrow_mut();
+                end.bonds.push(bond);
+                end.neighbors.push(b.start);
+            }
         }
         for a in &self.atoms {
             let mut a = a.borrow_mut();
