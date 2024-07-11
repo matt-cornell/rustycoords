@@ -148,13 +148,17 @@ impl<'a> Sketcher<'a> {
         }
         for bref in &mol.bonds {
             let mut b = bref.borrow_mut();
-            let mut start = b.start.borrow_mut();
-            let mut end = b.end.borrow_mut();
+            {
+                let mut start = b.start.borrow_mut();
+                start.bonds.push(bref);
+                start.neighbors.push(b.end);
+            }
+            {
+                let mut end = b.end.borrow_mut();
+                end.neighbors.push(b.start);
+                end.bonds.push(bref);
+            }
             b.sssr_visited = false;
-            start.bonds.push(bref);
-            end.bonds.push(bref);
-            start.neighbors.push(b.end);
-            end.neighbors.push(b.start);
         }
         let mut queue = VecDeque::new();
         self.ref_atoms.clear();
@@ -197,7 +201,9 @@ impl<'a> Sketcher<'a> {
                         },
                     );
                     let Some((_, neighbor)) = res else { break };
-                    let mut n = a.neighbors[neighbor].borrow_mut();
+                    let n = a.neighbors[neighbor];
+                    if eq(n, at) { continue }
+                    let mut n = n.borrow_mut();
                     if !n.general_use_visited {
                         n.general_use_visited = true;
                         queue.push_back(a.neighbors[neighbor]);
