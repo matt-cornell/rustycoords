@@ -9,6 +9,8 @@ pub(crate) trait InternerImpl {
     fn intern_molecule<'a>(&'a self, mol: Molecule<'a>) -> MoleculeRef<'a>;
     fn intern_frag_dof<'a>(&'a self, dof: FragmentDof<'a>) -> FragmentDofRef<'a>;
 }
+
+#[allow(private_bounds)]
 pub trait Interner: InternerImpl {}
 impl<T: InternerImpl> Interner for T {}
 
@@ -40,8 +42,15 @@ enum InternedKind<'a> {
     Molecule(RefCell<Molecule<'a>>),
     FragmentDof(RefCell<FragmentDof<'a>>),
 }
+
+#[derive(Debug, Default)]
 pub struct Unsync {
     inner: orx_imp_vec::ImpVec<InternedKind<'static>>,
+}
+impl Unsync {
+    pub fn new() -> Self {
+        Self::default()
+    }
 }
 impl InternerImpl for Unsync {
     fn intern_atom<'a>(&'a self, atom: Atom<'a>) -> AtomRef<'a> {

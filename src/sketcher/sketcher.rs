@@ -45,6 +45,12 @@ impl<'a> Sketcher<'a> {
             center: PointF(0.0, 0.0),
         }
     }
+    pub fn atoms(&self) -> &[AtomRef<'a>] {
+        &self.atoms
+    }
+    pub fn bonds(&self) -> &[BondRef<'a>] {
+        &self.bonds
+    }
     pub fn initialize(&mut self, mut mol: Molecule<'a>) {
         // let mut mol = mol.borrow_mut();
         self.ref_atoms.clone_from(&mol.atoms);
