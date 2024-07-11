@@ -201,6 +201,7 @@ impl<'a> Sketcher<'a> {
                         },
                     );
                     let Some((_, neighbor)) = res else { break };
+                    a.bonds[neighbor].borrow_mut().sssr_visited = true;
                     let n = a.neighbors[neighbor];
                     if eq(n, at) { continue }
                     let mut n = n.borrow_mut();
