@@ -31,7 +31,7 @@ impl<'a> Sketcher<'a> {
             ref_atoms: Vec::new(),
             ref_bonds: Vec::new(),
             proximity_relations: Vec::new(),
-            molecules: vec![interner.intern_molecule(Molecule::default())],
+            molecules: vec![],
             sin_flip: 0.0,
             cos_flip: 0.0,
             center: PointF(0.0, 0.0),
@@ -256,7 +256,9 @@ impl<'a> Sketcher<'a> {
                     i += 1;
                 }
             }
-            self.molecules.push(self.interner.intern_molecule(out));
+            if !out.atoms.is_empty() {
+                self.molecules.push(self.interner.intern_molecule(out));
+            }
         }
     }
     fn flag_cross_atoms(&mut self) {

@@ -269,15 +269,15 @@ pub fn split_into_fragments<'a>(mol: MoleculeRef<'a>, intern: &'a dyn Interner) 
                     b.is_reversed = !b.is_reversed;
                     child
                 };
-                if l.parent.map_or(false, |p| eq(p.0, child)) {
+                if eq(child, main_fragment) {
                     continue;
                 }
                 let mut c = child.borrow_mut();
                 if c.parent.is_none() {
                     c.parent = Some((last, bond));
+                    l.children.push(child);
+                    queue.push_back(child);
                 }
-                l.children.push(child);
-                queue.push_back(child);
             }
         }
         // order fragments
