@@ -14,6 +14,7 @@ pub enum FragmentDofKind<'a> {
     FlipRing {
         pivot1: AtomRef<'a>,
         pivot2: AtomRef<'a>,
+        penalty: f32,
     },
 }
 
@@ -22,6 +23,99 @@ pub struct FragmentDof<'a> {
     pub kind: FragmentDofKind<'a>,
     pub atoms: Vec<AtomRef<'a>>,
     pub frag: FragmentRef<'a>,
+    pub current_state: usize,
+}
+impl<'a> FragmentDof<'a> {
+    pub fn num_states(&self) -> usize {
+        match self.kind {
+            FragmentDofKind::RotateFrag => {
+                if self.frag.borrow().parent.is_some() {
+                    5
+                } else {
+                    1
+                }
+            }
+            FragmentDofKind::FlipFrag => {
+                if self.frag.borrow().parent.is_some() {
+                    2
+                } else {
+                    1
+                }
+            }
+            FragmentDofKind::ScaleAtom(_) => 2,
+            FragmentDofKind::ScaleFrag => {
+                if self.frag.borrow().rings.is_empty() {
+                    1
+                } else {
+                    5
+                }
+            }
+            FragmentDofKind::ChangeParentBond { .. } => 7,
+            FragmentDofKind::InvertBond { .. } => 2,
+            FragmentDofKind::FlipRing { .. } => 2,
+        }
+    }
+    pub fn change_state(&mut self) {
+        self.current_state += 1;
+        self.current_state %= self.num_states();
+    }
+    pub fn current_penalty(&self) -> f32 {
+        match self.kind {
+            FragmentDofKind::RotateFrag => {
+                if self.current_state == 0 {
+                    0.0
+                } else {
+                    (self.current_state as f32 + 1.0) * 200.0
+                }
+            }
+            FragmentDofKind::FlipFrag => {
+                let mut penalty = 0.0;
+                let frag = self.frag.borrow();
+                if self.current_state != 0 && frag.constrained_flip {
+                    penalty += 1000.0;
+                }
+                if frag.is_chain && frag.parent.map_or(false, |p| p.0.borrow().is_chain) {
+                    penalty += 10.0;
+                }
+                penalty
+            }
+            FragmentDofKind::ScaleAtom(_) => {
+                if self.current_state == 0 {
+                    0.0
+                } else {
+                    50.0 * self.atoms.len() as f32
+                }
+            }
+            FragmentDofKind::ScaleFrag => {
+                if self.current_state == 0 {
+                    0.0
+                } else {
+                    (self.current_state as f32 + 1.0) * 250.0
+                }
+            }
+            FragmentDofKind::ChangeParentBond => {
+                if self.current_state == 0 {
+                    0.0
+                } else {
+                    (self.current_state as f32 + 1.0) * 100.0
+                }
+            }
+            FragmentDofKind::InvertBond { .. } => {
+                if self.current_state == 0 {
+                    0.0
+                } else {
+                    100.0
+                }
+            }
+            FragmentDofKind::FlipRing { penalty, .. } => {
+                if self.current_state == 0 {
+                    0.0
+                } else {
+                    penalty * 200.0
+                }
+            }
+        }
+    }
 }
 
 pub type FragmentDofRef<'a> = &'a RefCell<FragmentDof<'a>>;

@@ -109,7 +109,12 @@ impl<'a> Bond<'a> {
         self.start.borrow().bonds.len() == 1 || self.end.borrow().bonds.len() == 1
     }
     pub(crate) fn is_inter_fragment(&self) -> bool {
-        if Atom::share_a_ring(self.start, self.end).is_some() {
+        if self
+            .start
+            .borrow()
+            .shares_a_ring_with(&self.end.borrow())
+            .is_some()
+        {
             return false;
         };
         !self.is_stereo()
@@ -121,7 +126,7 @@ impl<'a> Bond<'a> {
         if self.ignore_ze {
             return false;
         }
-        let ring = Atom::share_a_ring(self.start, self.end);
+        let ring = self.start.borrow().shares_a_ring_with(&self.end.borrow());
         ring.map_or(true, |r| r.borrow().is_macrocycle())
     }
     pub(crate) fn marked_as_cis(&self, a1: &Atom<'a>, a2: &Atom<'a>) -> bool {

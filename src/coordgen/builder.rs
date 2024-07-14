@@ -68,7 +68,11 @@ impl FragmentBuilder {
                     if eq(b.start, b.end) {
                         continue;
                     }
-                    if Atom::share_a_ring(b.start, b.end).is_some() {
+                    if b.start
+                        .borrow()
+                        .shares_a_ring_with(&b.end.borrow())
+                        .is_some()
+                    {
                         continue;
                     }
                     let start = b.start.borrow();
@@ -107,7 +111,7 @@ impl FragmentBuilder {
                                 it.next().is_some() && it.next().is_none()
                             })
                             .unwrap();
-                        self.order_chain_of_atoms(fa, start);
+                        Self::order_chain_of_atoms(fa, start);
                     }
                 }
                 for &ring in &frag.rings {
@@ -251,11 +255,13 @@ impl FragmentBuilder {
                 // maybe add macrocycle
                 // ...
                 for &n in &atom.neighbors {
-                    if Atom::share_a_ring(at, n).is_none() && eq(n.borrow().fragment.unwrap(), f) {
+                    let nr = n.borrow();
+                    if atom.shares_a_ring_with(&nr).is_none() && eq(nr.fragment.unwrap(), f) {
                         let dof = FragmentDof {
                             kind: FragmentDofKind::ScaleAtom(at),
                             atoms: vec![n],
                             frag: f,
+                            current_state: 0,
                         };
                         let dof = intern.intern_frag_dof(dof);
                         frag.dofs.push(dof);
@@ -374,7 +380,7 @@ impl FragmentBuilder {
         }
         frag.store_coordinate_information();
     }
-    fn order_chain_of_atoms<'a>(&self, chain: &mut [AtomRef<'a>], start: AtomRef<'a>) {
+    pub(crate) fn order_chain_of_atoms<'a>(chain: &mut [AtomRef<'a>], start: AtomRef<'a>) {
         todo!()
     }
     fn build_ring(&self, ring: RingRef<'_>) {

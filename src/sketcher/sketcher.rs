@@ -6,25 +6,27 @@ use std::ptr::eq;
 
 pub struct Sketcher<'a> {
     pub interner: &'a dyn Interner,
-    fragments: Vec<FragmentRef<'a>>,
-    minimizer: coordgen::Minimizer<'a>,
-    frag_builder: coordgen::FragmentBuilder,
-    atoms: Vec<AtomRef<'a>>,
-    bonds: Vec<BondRef<'a>>,
-    ref_atoms: Vec<AtomRef<'a>>,
-    ref_bonds: Vec<BondRef<'a>>,
-    proximity_relations: Vec<BondRef<'a>>,
-    molecules: Vec<MoleculeRef<'a>>,
-    sin_flip: f32,
-    cos_flip: f32,
-    center: PointF,
+    pub even_angles: bool,
+    pub max_iterations: usize,
+    pub(crate) fragments: Vec<FragmentRef<'a>>,
+    pub(crate) frag_builder: coordgen::FragmentBuilder,
+    pub(crate) atoms: Vec<AtomRef<'a>>,
+    pub(crate) bonds: Vec<BondRef<'a>>,
+    pub(crate) ref_atoms: Vec<AtomRef<'a>>,
+    pub(crate) ref_bonds: Vec<BondRef<'a>>,
+    pub(crate) proximity_relations: Vec<BondRef<'a>>,
+    pub(crate) molecules: Vec<MoleculeRef<'a>>,
+    pub(crate) sin_flip: f32,
+    pub(crate) cos_flip: f32,
+    pub(crate) center: PointF,
 }
 impl<'a> Sketcher<'a> {
     pub fn new(interner: &'a dyn Interner) -> Self {
         Self {
             interner,
+            even_angles: false,
+            max_iterations: 1000,
             fragments: Vec::new(),
-            minimizer: coordgen::Minimizer::new(),
             frag_builder: coordgen::FragmentBuilder::new(),
             atoms: Vec::new(),
             bonds: Vec::new(),
@@ -110,9 +112,10 @@ impl<'a> Sketcher<'a> {
     }
     fn run_generate_coordinates(&mut self) -> bool {
         self.find_fragments();
-        // self.minimizer.build_from_fragments(true);
-        // let clean_pose = self.minimizer.avoid_clashes();
-        let clean_pose = true;
+        let mut min = coordgen::Minimizer::new();
+        // min.build_from_fragments();
+        let clean_pose = min.avoid_clashes(self);
+        // let clean_pose = true;
         self.best_rotation();
         // self.maybe_flip();
         // self.arrange_multiple_molecules();

@@ -10,6 +10,7 @@ pub struct Molecule<'a> {
     pub(crate) proximity_relations: Vec<BondRef<'a>>,
     pub(crate) has_fixed_frags: bool,
     pub(crate) has_constrained_frags: bool,
+    pub(crate) requires_minimization: bool,
 }
 impl<'a> Molecule<'a> {
     pub fn add_atom(&mut self, atom: Atom<'a>, intern: &'a dyn Interner) -> AtomRef<'a> {

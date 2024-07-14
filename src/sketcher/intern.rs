@@ -8,6 +8,7 @@ pub(crate) trait InternerImpl {
     fn intern_fragment<'a>(&'a self, frg: Fragment<'a>) -> FragmentRef<'a>;
     fn intern_molecule<'a>(&'a self, mol: Molecule<'a>) -> MoleculeRef<'a>;
     fn intern_frag_dof<'a>(&'a self, dof: FragmentDof<'a>) -> FragmentDofRef<'a>;
+    fn intern_interaction<'a>(&'a self, int: Interaction<'a>) -> InteractionRef<'a>;
 }
 
 #[allow(private_bounds)]
@@ -32,6 +33,9 @@ impl InternerImpl for Leak {
     fn intern_frag_dof<'a>(&'a self, dof: FragmentDof<'a>) -> FragmentDofRef<'a> {
         Box::leak(Box::new(RefCell::new(dof)))
     }
+    fn intern_interaction<'a>(&'a self, int: Interaction<'a>) -> InteractionRef<'a> {
+        Box::leak(Box::new(RefCell::new(int)))
+    }
 }
 
 #[derive(Debug)]
@@ -41,6 +45,7 @@ enum InternedKind<'a> {
     Fragment(RefCell<Fragment<'a>>),
     Molecule(RefCell<Molecule<'a>>),
     FragmentDof(RefCell<FragmentDof<'a>>),
+    Interaction(RefCell<Interaction<'a>>),
 }
 
 #[derive(Debug, Default)]
@@ -139,6 +144,24 @@ impl InternerImpl for Unsync {
                 unreachable!()
             };
             transmute::<&'a RefCell<FragmentDof<'static>>, FragmentDofRef<'a>>(out)
+        }
+    }
+    fn intern_interaction<'a>(&'a self, int: Interaction<'a>) -> InteractionRef<'a> {
+        unsafe {
+            let int = transmute::<Interaction<'a>, Interaction<'static>>(int);
+            self.inner
+                .imp_push(InternedKind::Interaction(RefCell::new(int)));
+            let last = self
+                .inner
+                .fragments()
+                .iter()
+                .rev()
+                .find_map(|f| f.last())
+                .unwrap();
+            let InternedKind::Interaction(out) = last else {
+                unreachable!()
+            };
+            transmute::<&'a RefCell<Interaction<'static>>, InteractionRef<'a>>(out)
         }
     }
 }

@@ -11,7 +11,11 @@ impl<'a> Ring<'a> {
         todo!()
     }
     pub fn find_center(&self) -> PointF {
-        todo!()
+        self.atoms
+            .iter()
+            .map(|a| a.borrow().coordinates)
+            .sum::<PointF>()
+            / self.atoms.len() as f32
     }
 }
 

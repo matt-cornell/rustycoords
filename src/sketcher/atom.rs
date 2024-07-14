@@ -76,33 +76,111 @@ impl<'a> Atom<'a> {
     ) -> AtomRef<'a> {
         todo!()
     }
-    pub(crate) fn share_a_ring(a1: AtomRef<'a>, a2: AtomRef<'a>) -> Option<RingRef<'a>> {
-        let a1 = a1.borrow();
-        let a2 = a2.borrow();
-        if a1.rings.is_empty() {
+    pub(crate) fn shares_a_ring_with(&self, a2: &Atom<'a>) -> Option<RingRef<'a>> {
+        if self.rings.is_empty() {
             return None;
         }
         if a2.rings.is_empty() {
             return None;
         }
-        for &r1 in &a1.rings {
-            if r1.borrow().is_macrocycle() {
+        let mut r: Option<RingRef<'a>> = None;
+        for &r1 in &self.rings {
+            let ring = r1.borrow();
+            if ring.is_macrocycle() {
                 continue;
             }
             for &r2 in &a2.rings {
-                if std::ptr::eq(r1, r2) {
-                    return Some(r1);
+                if !std::ptr::eq(r1, r2) {
+                    continue;
+                }
+                if let Some(old) = r {
+                    if ring.atoms.len() > old.borrow().atoms.len() {
+                        r = Some(r1);
+                    }
+                } else {
+                    r = Some(r1);
                 }
             }
         }
-        for &r1 in &a1.rings {
+        for &r1 in &self.rings {
+            let ring = r1.borrow();
             for &r2 in &a2.rings {
-                if std::ptr::eq(r1, r2) {
-                    return Some(r1);
+                if !std::ptr::eq(r1, r2) {
+                    continue;
+                }
+                if let Some(old) = r {
+                    if ring.atoms.len() > old.borrow().atoms.len() {
+                        r = Some(r1);
+                    }
+                } else {
+                    r = Some(r1);
                 }
             }
         }
-        None
+        r
+    }
+    pub(crate) fn shares_a_ring_with_both(
+        &self,
+        a2: &Atom<'a>,
+        a3: &Atom<'a>,
+    ) -> Option<RingRef<'a>> {
+        if self.rings.is_empty() {
+            return None;
+        }
+        if a2.rings.is_empty() {
+            return None;
+        }
+        if a3.rings.is_empty() {
+            return None;
+        }
+        let mut r: Option<RingRef<'a>> = None;
+        for &r1 in &self.rings {
+            let ring = r1.borrow();
+            if ring.is_macrocycle() {
+                continue;
+            }
+            for &r2 in &a2.rings {
+                if !std::ptr::eq(r1, r2) {
+                    continue;
+                }
+                for &r3 in &a3.rings {
+                    if !std::ptr::eq(r1, r3) {
+                        continue;
+                    }
+                    if let Some(old) = r {
+                        if ring.atoms.len() > old.borrow().atoms.len() {
+                            r = Some(r1);
+                        }
+                    } else {
+                        r = Some(r1);
+                    }
+                }
+            }
+        }
+        for &r1 in &self.rings {
+            let ring = r1.borrow();
+            for &r2 in &a2.rings {
+                if !std::ptr::eq(r1, r2) {
+                    continue;
+                }
+                for &r3 in &a3.rings {
+                    if !std::ptr::eq(r1, r3) {
+                        continue;
+                    }
+                    if let Some(old) = r {
+                        if ring.atoms.len() > old.borrow().atoms.len() {
+                            r = Some(r1);
+                        }
+                    } else {
+                        r = Some(r1);
+                    }
+                }
+            }
+        }
+        r
+    }
+    pub(crate) fn clockwise_ordered_neighbors(&self, out: &mut Vec<AtomRef<'a>>) {
+        todo!()
     }
     pub fn is_metal(atom_number: u8) -> bool {
         [3, 4, 11, 12, 13, 31, 49, 32, 50, 51].contains(&atom_number)
