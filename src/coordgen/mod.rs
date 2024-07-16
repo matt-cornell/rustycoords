@@ -5,5 +5,4 @@ pub mod minimizer;
 use super::sketcher::*;
 use super::*;
 
-pub use builder::FragmentBuilder;
 pub use minimizer::Minimizer;

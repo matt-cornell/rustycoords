@@ -29,6 +29,7 @@ pub struct Bond<'a> {
     pub(crate) is_z: bool,
     pub(crate) ignore_ze: bool,
     pub(crate) sssr_visited: bool,
+    pub(crate) sssr_parent_at_start: bool,
     pub(crate) rings: Vec<RingRef<'a>>,
     pub(crate) sssr_parent: Option<BondRef<'a>>,
 }
@@ -44,6 +45,7 @@ impl<'a> Bond<'a> {
             is_z: false,
             ignore_ze: false,
             sssr_visited: false,
+            sssr_parent_at_start: false,
             stereo: StereoInfo {
                 atom1: None,
                 atom2: None,

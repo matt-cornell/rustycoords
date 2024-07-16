@@ -7,9 +7,9 @@ use std::ptr::eq;
 pub struct Sketcher<'a> {
     pub interner: &'a dyn Interner,
     pub even_angles: bool,
+    pub precision: f32,
     pub max_iterations: usize,
     pub(crate) fragments: Vec<FragmentRef<'a>>,
-    pub(crate) frag_builder: coordgen::FragmentBuilder,
     pub(crate) atoms: Vec<AtomRef<'a>>,
     pub(crate) bonds: Vec<BondRef<'a>>,
     pub(crate) ref_atoms: Vec<AtomRef<'a>>,
@@ -26,8 +26,8 @@ impl<'a> Sketcher<'a> {
             interner,
             even_angles: false,
             max_iterations: 1000,
+            precision: 1.0,
             fragments: Vec::new(),
-            frag_builder: coordgen::FragmentBuilder::new(),
             atoms: Vec::new(),
             bonds: Vec::new(),
             ref_atoms: Vec::new(),
@@ -92,7 +92,7 @@ impl<'a> Sketcher<'a> {
         self.canonical_orderng(&mut mol);
         self.atoms.clone_from(&mol.atoms);
         self.bonds.clone_from(&mol.bonds);
-        mol.force_update_struct();
+        mol.force_update_struct(self.interner);
         self.split_molecules(&mut mol);
         for &bref in &self.proximity_relations {
             let b = bref.borrow();
@@ -108,14 +108,12 @@ impl<'a> Sketcher<'a> {
             }
         }
         self.flag_cross_atoms();
-        // TODO: assign coordgen stuff
     }
     fn run_generate_coordinates(&mut self) -> bool {
         self.find_fragments();
         let mut min = coordgen::Minimizer::new();
-        // min.build_from_fragments();
+        min.build_from_fragments(true, self);
         let clean_pose = min.avoid_clashes(self);
-        // let clean_pose = true;
         self.best_rotation();
         // self.maybe_flip();
         // self.arrange_multiple_molecules();
@@ -303,7 +301,7 @@ impl<'a> Sketcher<'a> {
             self.assign_num_children(&mut f.borrow_mut());
         }
         for &f in &self.fragments {
-            self.frag_builder.initialize_coords(f, self.interner);
+            coordgen::builder::initialize_coords(f, self);
         }
         for f in &independent {
             self.assign_longest_chain(&mut f.borrow_mut(), None);

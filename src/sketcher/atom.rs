@@ -180,7 +180,7 @@ impl<'a> Atom<'a> {
         r
     }
     pub(crate) fn clockwise_ordered_neighbors(&self, out: &mut Vec<AtomRef<'a>>) {
-        todo!()
+        out.clone_from(&self.neighbors); // TODO: actually order this
     }
     pub fn is_metal(atom_number: u8) -> bool {
         [3, 4, 11, 12, 13, 31, 49, 32, 50, 51].contains(&atom_number)

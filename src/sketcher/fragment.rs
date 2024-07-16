@@ -84,5 +84,41 @@ impl<'a> Fragment<'a> {
             self.coords.insert(a as *const _, c);
         }
     }
+    pub fn set_coordinates(&mut self, position: PointF, angle: f32) {
+        let (sin, cos) = angle.sin_cos();
+        for (atom, coords) in &self.coords {
+            unsafe { (**atom).borrow_mut().set_coords(*coords) }
+        }
+        for dof in &self.dofs {
+            dof.borrow().apply(self);
+        }
+        for atom in self.coords.keys() {
+            let mut atom = unsafe { (**atom).borrow_mut() };
+            atom.coordinates.rotate(sin, cos);
+            atom.coordinates += position;
+        }
+    }
+    pub fn finalize(frag: FragmentRef<'a>, intern: &'a dyn Interner) {
+        frag.borrow_mut().dofs.extend_from_slice(&[
+            intern.intern_frag_dof(FragmentDof {
+                kind: FragmentDofKind::FlipFrag,
+                atoms: vec![],
+                frag,
+                current_state: 0,
+            }),
+            intern.intern_frag_dof(FragmentDof {
+                kind: FragmentDofKind::RotateFrag,
+                atoms: vec![],
+                frag,
+                current_state: 0,
+            }),
+            intern.intern_frag_dof(FragmentDof {
+                kind: FragmentDofKind::ChangeParentBond,
+                atoms: vec![],
+                frag,
+                current_state: 0,
+            }),
+        ]);
+    }
 }
 pub type FragmentRef<'a> = &'a RefCell<Fragment<'a>>;

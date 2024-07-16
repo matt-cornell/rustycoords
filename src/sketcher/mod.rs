@@ -25,7 +25,7 @@ use std::cell::RefCell;
 pub use atom::AtomRef;
 pub use bond::BondRef;
 pub use builder::Builder;
-pub use intern::Unsync;
+pub use intern::Intern;
 pub use molecule::MoleculeRef;
 pub use point::PointF;
 pub use sketcher::Sketcher;

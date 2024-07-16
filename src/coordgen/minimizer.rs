@@ -1,5 +1,6 @@
 use super::*;
-use std::ptr::eq;
+use ahash::{AHashMap, AHashSet};
+use std::{collections::hash_map::Entry, ptr::eq};
 
 struct Solutions<'a, 'b> {
     min: &'b mut Minimizer<'a>,
@@ -8,8 +9,80 @@ struct Solutions<'a, 'b> {
     dofs: &'b [FragmentDofRef<'a>],
 }
 impl<'a> Solutions<'a, '_> {
+    fn score_current(&mut self, sols: &mut AHashMap<Vec<usize>, f32>) -> f32 {
+        let solution = self.current_solution();
+        let len = sols.len();
+        match sols.entry(solution) {
+            Entry::Occupied(e) => *e.get(),
+            Entry::Vacant(e) => {
+                if len as f32 > 10000.0 * self.sketcher.precision {
+                    return 1.0e8;
+                }
+                self.min.build_mol_from_fragments(self.mol, false);
+                let score = self.min.score_clashes(self.mol);
+                *e.insert(score)
+            }
+        }
+    }
+    fn current_solution(&self) -> Vec<usize> {
+        self.dofs.iter().map(|d| d.borrow().current_state).collect()
+    }
+    fn load_solution(&self, sol: &[usize], skip: usize) {
+        for (n, (dof, sol)) in self.dofs.iter().zip(sol).enumerate() {
+            if n != skip {
+                dof.borrow_mut().current_state = *sol;
+            }
+        }
+    }
     pub fn run_search(&mut self) -> bool {
-        todo!()
+        let mut growing = AHashMap::new();
+        let mut all = AHashSet::new();
+        let mut best = self.score_current(&mut growing);
+        let mut old = AHashMap::new();
+        let mut bests = Vec::new();
+        let mut tier = 0;
+        growing.insert(self.current_solution(), best);
+        'main: for _ in 0..100 {
+            old.clone_from(&growing);
+            bests.clear();
+            bests.extend(growing.drain().map(|(a, b)| (b, a)));
+            bests.sort_unstable_by(|(af, av), (bf, bv)| af.total_cmp(bf).then_with(|| av.cmp(bv)));
+            growing.clear();
+            let max_n = (6.0 * self.sketcher.precision).min(1.0) as usize;
+            let this_best = best;
+            for sol in bests.iter().take(max_n) {
+                for (n, d) in self.dofs.iter().enumerate() {
+                    let dof = d.borrow();
+                    if dof.tier() > tier {
+                        continue;
+                    }
+                    self.load_solution(&sol.1, n);
+                    let states = dof.num_states();
+                    drop(dof);
+                    for _ in 1..states {
+                        d.borrow_mut().change_state();
+                        let new_sol = self.current_solution();
+                        if !all.insert(new_sol.clone()) {
+                            let score = self.score_current(&mut growing);
+                            if score == 1.0e8 {
+                                break 'main;
+                            }
+                            if score < best {
+                                best = score;
+                            }
+                            if score < this_best {
+                                growing.insert(new_sol, score);
+                            }
+                        }
+                    }
+                }
+            }
+            if growing.is_empty() && tier < 5 {
+                growing.clone_from(&old);
+                tier += 3;
+            }
+        }
+        best < 10.0
     }
 }
 
@@ -19,7 +92,6 @@ struct BendStub<'a> {
     atom3: AtomRef<'a>,
     rest_v: f32,
     k: f32,
-    is_ring: bool,
 }
 
 pub struct Minimizer<'a> {
@@ -33,11 +105,160 @@ impl<'a> Minimizer<'a> {
             intra_inters: Vec::new(),
         }
     }
-    pub fn build_from_fragments(&mut self, first: bool) {
-        todo!()
+    pub fn build_from_fragments(&mut self, first: bool, sketcher: &Sketcher<'a>) {
+        for mol in &sketcher.molecules {
+            self.build_mol_from_fragments(&mol.borrow(), first);
+        }
     }
     fn build_mol_from_fragments(&mut self, mol: &Molecule<'a>, first: bool) {
-        todo!()
+        let mut chain_dirs = Vec::new();
+        for &f in &mol.fragments {
+            let mut frag = f.borrow_mut();
+            let (position, angle) = if let Some((par, b)) = frag.parent {
+                let b = b.borrow();
+                let p1 = b.start.borrow().coordinates;
+                let p2 = b.end.borrow().coordinates;
+                let p = p2 - p1;
+                let angle = (-p.1).atan2(p.0);
+                if first {
+                    if !frag.fixed {
+                        let invert = if frag.constrained {
+                            let (sin, cos) = angle.sin_cos();
+                            let mut plain_sum = 0.0;
+                            let mut flipped_sum = 0.0;
+                            for (atom, coords) in &frag.coords {
+                                let atom = unsafe { (**atom).borrow() };
+                                if !atom.constrained {
+                                    continue;
+                                }
+                                let mut plain = *coords;
+                                let mut flipped = PointF(coords.0, -coords.1);
+                                plain.rotate(sin, cos);
+                                flipped.rotate(sin, cos);
+                                plain_sum += (plain + p2 - atom.template).sq_length();
+                                flipped_sum += (flipped + p2 - atom.template).sq_length();
+                            }
+                            plain_sum < flipped_sum // sqrt and rounding preserve ordering
+                        } else {
+                            chain_dirs.clear();
+                            chain_dirs.reserve(frag.bonds.len() + frag.children.len() + 1);
+                            let origin = (p1 + p2) * 0.5;
+                            Self::all_terminal_bonds(&frag, &mut |bond| {
+                                let bond = bond.borrow();
+                                let start = bond.start.borrow();
+                                let end = bond.end.borrow();
+                                if eq(f, end.fragment.unwrap()) {
+                                    return;
+                                }
+                                let mut direction =
+                                    origin - (start.coordinates + end.coordinates) * 0.5;
+                                direction.normalize();
+                                let mut score = 1.0;
+                                if bond.bond_order == 2 {
+                                    score *= 0.82;
+                                }
+                                if (start.neighbors.len() == 1 && start.atom_number != 6)
+                                    || (end.neighbors.len() == 1 && end.atom_number != 6)
+                                {
+                                    score *= 0.9;
+                                }
+                                if !(eq(start.fragment.unwrap(), par)
+                                    || eq(end.fragment.unwrap(), par))
+                                {
+                                    score = end.fragment.unwrap().borrow().longest_chain;
+                                    if par
+                                        .borrow()
+                                        .parent
+                                        .map_or(false, |p| eq(start.fragment.unwrap(), p.0))
+                                    {
+                                        score *= 100.0;
+                                    }
+                                }
+                                chain_dirs.push((direction, score));
+                            });
+                            let (sin, cos) = angle.sin_cos();
+                            let mut invert = false;
+                            let mut best = 0.0;
+                            let mut best_dir = PointF(1.0, 0.0);
+                            Self::all_terminal_bonds(&frag, &mut |bond| {
+                                let bond = bond.borrow();
+                                let start = bond.start.borrow();
+                                let end = bond.end.borrow();
+                                if !eq(start.fragment.unwrap(), f) {
+                                    return;
+                                }
+                                let mut plain = (frag.coords[&(bond.start as *const _)]
+                                    + frag
+                                        .coords
+                                        .get(&(bond.end as *const _))
+                                        .copied()
+                                        .unwrap_or_default())
+                                    * 0.5
+                                    - PointF(BOND_LENGTH * 0.5, 0.0);
+                                plain.normalize();
+                                let mut inverted = PointF(plain.0, -plain.1);
+                                plain.rotate(sin, cos);
+                                inverted.rotate(sin, cos);
+                                let mut score_mod = 1.0;
+                                if bond.bond_order == 2 {
+                                    score_mod *= 0.82;
+                                }
+                                if (start.neighbors.len() == 1 && start.atom_number != 6)
+                                    || (end.neighbors.len() == 1 && end.atom_number != 6)
+                                {
+                                    score_mod *= 0.9;
+                                }
+                                if !(eq(start.fragment.unwrap(), par)
+                                    || eq(end.fragment.unwrap(), par))
+                                {
+                                    score_mod = end.fragment.unwrap().borrow().longest_chain;
+                                }
+                                for &(dir, base) in &chain_dirs {
+                                    {
+                                        let dot = plain.dot(dir).max(0.0);
+                                        let mut score = dot * dot;
+                                        if dot > 1.0 - EPSILON {
+                                            score += 1000.0;
+                                        }
+                                        score *= base;
+                                        score *= score_mod;
+                                        if score > best {
+                                            best = score;
+                                            best_dir = dir;
+                                            invert = false;
+                                        }
+                                    }
+                                    {
+                                        let dot = inverted.dot(dir).max(0.0);
+                                        let mut score = dot * dot;
+                                        if dot > 1.0 - EPSILON {
+                                            score += 1000.0;
+                                        }
+                                        score *= base;
+                                        score *= score_mod;
+                                        if score > best {
+                                            best = score;
+                                            best_dir = dir;
+                                            invert = true;
+                                        }
+                                    }
+                                }
+                            });
+                            invert
+                        };
+                        if invert {
+                            for coords in frag.coords.values_mut() {
+                                coords.1 *= -1.0;
+                            }
+                        }
+                    }
+                }
+                (p2, angle)
+            } else {
+                Default::default()
+            };
+            frag.set_coordinates(position, angle);
+        }
     }
     pub fn avoid_clashes(&mut self, sketcher: &Sketcher<'a>) -> bool {
         let mut all_clean = true;
@@ -73,11 +294,11 @@ impl<'a> Minimizer<'a> {
             let clean_pose = Solutions {
                 min: self,
                 sketcher,
-                mol: &mol,
+                mol: &**mol,
                 dofs: &dofs,
             }
             .run_search();
-            self.build_from_fragments(true);
+            self.build_mol_from_fragments(mol, true);
             if !clean_pose {
                 all_clean = false;
                 if clash_e >= 0.1 {
@@ -86,25 +307,27 @@ impl<'a> Minimizer<'a> {
                         if !b.is_terminal() {
                             continue;
                         }
-                        let (mut term, coords) = if eq(b.start, b.end) {
-                            let t = b.start.borrow_mut();
-                            let c = t.coordinates;
-                            (t, c)
+                        let (term_ref, coords) = if eq(b.start, b.end) {
+                            (b.start, b.start.borrow().coordinates)
                         } else {
-                            let mut root = b.start.borrow_mut();
-                            let mut term = b.end.borrow_mut();
-                            if term.neighbors.len() != 1 {
+                            let mut root = b.start;
+                            let mut term = b.end;
+                            if term.borrow().neighbors.len() != 1 {
                                 std::mem::swap(&mut root, &mut term);
                             }
-                            (term, root.coordinates)
+                            (term, root.borrow().coordinates)
                         };
+                        let term = term_ref.borrow();
                         if term.fixed {
                             continue;
                         }
+                        let c = term.coordinates;
+                        drop(term);
                         for &b2 in &mol.bonds {
                             if !eq(bond, b2) && Self::bonds_clash(&bond.borrow(), &b2.borrow()) {
-                                let c = term.coordinates;
-                                term.set_coords(coords + (c - coords) * 0.1);
+                                term_ref
+                                    .borrow_mut()
+                                    .set_coords(coords + (c - coords) * 0.1);
                             }
                         }
                     }
@@ -184,7 +407,6 @@ impl<'a> Minimizer<'a> {
                                         rest_v,
                                         k: 100.0,
                                         atom2: a,
-                                        is_ring: true,
                                     });
                                 } else {
                                     if nbonds == 3 && !inverted {
@@ -218,7 +440,6 @@ impl<'a> Minimizer<'a> {
                                         rest_v,
                                         k: 1.0,
                                         atom2: a,
-                                        is_ring: false,
                                     };
                                     if fused {
                                         ring_ints.push(stub);
@@ -233,7 +454,6 @@ impl<'a> Minimizer<'a> {
                                     rest_v,
                                     k: 1.0,
                                     atom2: a,
-                                    is_ring: false,
                                 });
                             }
                         }
@@ -287,18 +507,13 @@ impl<'a> Minimizer<'a> {
                         atom3,
                         rest_v,
                         k,
-                        is_ring,
                     } in ring_ints.iter().chain(&non_ring_ints)
                     {
                         if at.fixed && atom1.borrow().fixed && atom3.borrow().fixed {
                             continue;
                         }
                         let int = Interaction {
-                            kind: InteractionKind::Bend {
-                                k2: 0.05,
-                                atom3,
-                                is_ring,
-                            },
+                            kind: InteractionKind::Bend { k2: 0.05, atom3 },
                             atom1,
                             atom2,
                             rest_v,
@@ -316,7 +531,7 @@ impl<'a> Minimizer<'a> {
                     }
                     atom_buf.clone_from(&r.atoms);
                     let start = atom_buf[0];
-                    FragmentBuilder::order_chain_of_atoms(&mut atom_buf, start);
+                    builder::order_chain_of_atoms(&mut atom_buf, start);
                     let len = atom_buf.len();
                     for i in 0..len {
                         let a1 = atom_buf[(i + len - 1) % len];
@@ -339,7 +554,7 @@ impl<'a> Minimizer<'a> {
                                     atom3: a11,
                                     atom4: a1,
                                     is_z,
-                                    force: false,
+                                    force_move: false,
                                 },
                                 atom1: ai,
                                 atom2: a2,
@@ -358,7 +573,7 @@ impl<'a> Minimizer<'a> {
                 for iter in 0..sketcher.max_iterations {
                     let mut total = 0.0;
                     for i in &self.interactions {
-                        i.borrow().score(&mut total);
+                        i.borrow_mut().score(&mut total);
                     }
                     local_energy_list.push(total);
                     if total < min {
@@ -483,11 +698,12 @@ impl<'a> Minimizer<'a> {
     fn score_clashes(&mut self, mol: &Molecule<'a>) -> f32 {
         let mut e = 0.0;
         for i in &self.intra_inters {
-            i.borrow().score(&mut e);
+            i.borrow_mut().score(&mut e);
         }
         for f in &mol.fragments {
-            for dof in &f.borrow().dofs {
-                e += dof.borrow().current_penalty();
+            let f = f.borrow();
+            for dof in &f.dofs {
+                e += dof.borrow().current_penalty(&f);
             }
         }
         if mol.bonds.len() > 2 {
@@ -570,5 +786,16 @@ impl<'a> Minimizer<'a> {
             return true;
         }
         math::intersection_of_segments(start1, end1, start2, end2).is_some()
+    }
+    /// Refactored to take a callback to avoid allocating a buffer
+    fn all_terminal_bonds(frag: &Fragment<'a>, call: &mut dyn FnMut(BondRef<'a>)) {
+        frag.bonds.iter().copied().for_each(&mut *call);
+        for child in &frag.children {
+            let ch = child.borrow();
+            call(ch.parent.unwrap().1);
+        }
+        if let Some(p) = frag.parent {
+            call(p.1);
+        }
     }
 }

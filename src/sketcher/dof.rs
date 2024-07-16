@@ -5,12 +5,14 @@ pub enum FragmentDofKind<'a> {
     RotateFrag,
     FlipFrag,
     ScaleAtom(AtomRef<'a>),
+    #[allow(dead_code)]
     ScaleFrag,
     ChangeParentBond,
     InvertBond {
         pivot: AtomRef<'a>,
         bound: AtomRef<'a>,
     },
+    #[allow(dead_code)]
     FlipRing {
         pivot1: AtomRef<'a>,
         pivot2: AtomRef<'a>,
@@ -59,7 +61,7 @@ impl<'a> FragmentDof<'a> {
         self.current_state += 1;
         self.current_state %= self.num_states();
     }
-    pub fn current_penalty(&self) -> f32 {
+    pub fn current_penalty(&self, frag: &Fragment<'a>) -> f32 {
         match self.kind {
             FragmentDofKind::RotateFrag => {
                 if self.current_state == 0 {
@@ -70,7 +72,6 @@ impl<'a> FragmentDof<'a> {
             }
             FragmentDofKind::FlipFrag => {
                 let mut penalty = 0.0;
-                let frag = self.frag.borrow();
                 if self.current_state != 0 && frag.constrained_flip {
                     penalty += 1000.0;
                 }
@@ -112,6 +113,88 @@ impl<'a> FragmentDof<'a> {
                     0.0
                 } else {
                     penalty * 200.0
+                }
+            }
+        }
+    }
+    pub fn tier(&self) -> u8 {
+        match self.kind {
+            FragmentDofKind::RotateFrag => 3,
+            FragmentDofKind::FlipFrag => 0,
+            FragmentDofKind::ScaleFrag => 5,
+            FragmentDofKind::ScaleAtom(_) => 4,
+            FragmentDofKind::ChangeParentBond => 2,
+            FragmentDofKind::InvertBond { .. } => 1,
+            FragmentDofKind::FlipRing { .. } => 1,
+        }
+    }
+    pub fn apply(&self, frag: &Fragment<'a>) {
+        if self.current_state != 0 {
+            match self.kind {
+                FragmentDofKind::RotateFrag => {
+                    let mut angle = (((self.current_state + 1) / 2) as f32 * 15.0).to_radians();
+                    if self.current_state & 1 == 0 {
+                        angle = -angle;
+                    }
+                    let (sin, cos) = angle.sin_cos();
+                    let origin = PointF(-BOND_LENGTH, 0.0);
+                    for atom in frag.coords.keys() {
+                        let mut atom = unsafe { (**atom).borrow_mut() };
+                        let mut coords = atom.coordinates - origin;
+                        coords.rotate(sin, cos);
+                        atom.set_coords(coords + origin);
+                    }
+                }
+                FragmentDofKind::FlipFrag => {
+                    for atom in frag.coords.keys() {
+                        unsafe { (**atom).borrow_mut() }.coordinates *= -1.0;
+                    }
+                }
+                FragmentDofKind::ScaleFrag => {
+                    let mut scale = 1.4f32.powi((self.current_state as i32 + 1) / 2);
+                    if self.current_state & 1 == 0 {
+                        scale = scale.recip();
+                    }
+                    for atom in frag.coords.keys() {
+                        unsafe { (**atom).borrow_mut() }.coordinates *= scale;
+                    }
+                }
+                FragmentDofKind::ScaleAtom(pivot) => {
+                    let pivot = pivot.borrow().coordinates;
+                    for atom in &self.atoms {
+                        let mut atom = atom.borrow_mut();
+                        let dist = atom.coordinates - pivot;
+                        atom.set_coords(dist * 0.4 + pivot);
+                    }
+                }
+                FragmentDofKind::ChangeParentBond => {
+                    let mut scale = 1.6f32.powi((self.current_state as i32 + 1) / 2);
+                    if self.current_state & 1 == 0 {
+                        scale = scale.recip();
+                    }
+                    let move_by = BOND_LENGTH * (scale - 1.0);
+                    for atom in frag.coords.keys() {
+                        unsafe { (**atom).borrow_mut() }.coordinates.0 += move_by;
+                    }
+                }
+                FragmentDofKind::InvertBond { pivot, bound } => {
+                    let pivot = pivot.borrow().coordinates;
+                    let bond_dir = bound.borrow().coordinates - pivot;
+                    let normal = PointF(bond_dir.1, -bond_dir.0);
+                    let point1 = pivot + normal;
+                    let point2 = pivot - normal;
+                    for atom in &self.atoms {
+                        let mut atom = atom.borrow_mut();
+                        atom.coordinates = math::mirror_point(atom.coordinates, point1, point2);
+                    }
+                }
+                FragmentDofKind::FlipRing { pivot1, pivot2, .. } => {
+                    let point1 = pivot1.borrow().coordinates;
+                    let point2 = pivot2.borrow().coordinates;
+                    for atom in &self.atoms {
+                        let mut atom = atom.borrow_mut();
+                        atom.coordinates = math::mirror_point(atom.coordinates, point1, point2);
+                    }
                 }
             }
         }

@@ -13,6 +13,7 @@ pub fn split_into_fragments<'a>(mol: MoleculeRef<'a>, intern: &'a dyn Interner) 
         let mut frag = Fragment::default();
         frag.atoms.push(*only);
         let interned = intern.intern_fragment(frag);
+        Fragment::finalize(interned, intern);
         only.borrow_mut().fragment = Some(interned);
         m.fragments.push(interned);
     }
@@ -25,6 +26,7 @@ pub fn split_into_fragments<'a>(mol: MoleculeRef<'a>, intern: &'a dyn Interner) 
                     let mut frag = Fragment::default();
                     frag.atoms.push(b.start);
                     let interned = intern.intern_fragment(frag);
+                    Fragment::finalize(interned, intern);
                     start.fragment = Some(interned);
                     m.fragments.push(interned);
                 }
@@ -35,6 +37,7 @@ pub fn split_into_fragments<'a>(mol: MoleculeRef<'a>, intern: &'a dyn Interner) 
                     let mut frag = Fragment::default();
                     frag.atoms.push(b.end);
                     let interned = intern.intern_fragment(frag);
+                    Fragment::finalize(interned, intern);
                     end.fragment = Some(interned);
                     m.fragments.push(interned);
                 }
@@ -46,6 +49,7 @@ pub fn split_into_fragments<'a>(mol: MoleculeRef<'a>, intern: &'a dyn Interner) 
                     let mut frag = Fragment::default();
                     frag.atoms.push(b.start);
                     let interned = intern.intern_fragment(frag);
+                    Fragment::finalize(interned, intern);
                     a.fragment = Some(interned);
                     m.fragments.push(interned);
                 }
@@ -58,6 +62,7 @@ pub fn split_into_fragments<'a>(mol: MoleculeRef<'a>, intern: &'a dyn Interner) 
                     let mut frag = Fragment::default();
                     frag.atoms.extend_from_slice(&[b.start, b.end]);
                     let interned = intern.intern_fragment(frag);
+                    Fragment::finalize(interned, intern);
                     start.fragment = Some(interned);
                     end.fragment = Some(interned);
                     m.fragments.push(interned);
